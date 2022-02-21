@@ -1,0 +1,7 @@
+networks:
+  development:
+    cmd_settings:
+      accounts: 20
+
+
+autofetch_sources: true
