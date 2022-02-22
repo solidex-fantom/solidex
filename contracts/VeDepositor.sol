@@ -8,6 +8,7 @@ import "./interfaces/solidex/ILpDepositor.sol";
 import "./interfaces/solidex/IFeeDistributor.sol";
 import "./interfaces/solidex/ISolidexVoter.sol";
 
+
 contract VeDepositor is IERC20, Ownable {
 
     string public constant name = "SOLIDsex: Tokenized veSOLID";
@@ -129,7 +130,8 @@ contract VeDepositor is IERC20, Ownable {
         address _from,
         uint256 _tokenID,
         bytes calldata
-    )external returns (bytes4) {
+    ) external returns (bytes4) {
+        require(msg.sender == address(votingEscrow), "Can only receive veSOLID NFTs");
         (uint256 amount, uint256 end) = votingEscrow.locked(_tokenID);
 
         if (tokenID == 0) {
@@ -140,15 +142,24 @@ contract VeDepositor is IERC20, Ownable {
         } else {
             votingEscrow.merge(_tokenID, tokenID);
             if (end > unlockTime) unlockTime = end;
+            emit Merged(_operator, _tokenID, amount);
         }
 
-        balanceOf[_operator] += amount;
-        totalSupply += amount;
+        _mint(_operator, amount);
         extendLockTime();
 
         return bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"));
     }
 
+    /**
+        @notice Merge a veSOLID NFT previously sent to this contract
+                with the main Solidex NFT
+        @dev This is primarily meant to allow claiming balances from NFTs
+             incorrectly sent using `transferFrom`. To deposit an NFT
+             you should always use `safeTransferFrom`.
+        @param _tokenID ID of the NFT to merge
+        @return bool success
+     */
     function merge(uint256 _tokenID) external returns (bool) {
         require(tokenID != _tokenID);
         (uint256 amount, uint256 end) = votingEscrow.locked(_tokenID);
@@ -156,39 +167,48 @@ contract VeDepositor is IERC20, Ownable {
 
         votingEscrow.merge(_tokenID, tokenID);
         if (end > unlockTime) unlockTime = end;
-
-        balanceOf[msg.sender] += amount;
-        totalSupply += amount;
-        extendLockTime();
         emit Merged(msg.sender, _tokenID, amount);
+
+        _mint(msg.sender, amount);
+        extendLockTime();
 
         return true;
     }
 
+    /**
+        @notice Deposit SOLID tokens and mint SOLIDsex
+        @param _amount Amount of SOLID to deposit
+        @return bool success
+     */
     function depositTokens(uint256 _amount) external returns (bool) {
         require(tokenID != 0, "First deposit must be NFT");
 
         token.transferFrom(msg.sender, address(this), _amount);
         votingEscrow.increase_amount(tokenID, _amount);
-        balanceOf[msg.sender] += _amount;
-        totalSupply += _amount;
+        _mint(msg.sender, _amount);
         extendLockTime();
 
         return true;
     }
 
+    /**
+        @notice Extend the lock time of the protocol's veSOLID NFT
+        @dev Lock times are also extended each time new SOLIDsex is minted.
+             If the lock time is already at the maximum duration, calling
+             this function does nothing.
+     */
     function extendLockTime() public {
         uint256 maxUnlock = ((block.timestamp + MAX_LOCK_TIME) / WEEK) * WEEK;
         if (maxUnlock > unlockTime) {
             votingEscrow.increase_unlock_time(tokenID, MAX_LOCK_TIME);
             unlockTime = maxUnlock;
+            emit UnlockTimeUpdated(unlockTime);
         }
-        emit UnlockTimeUpdated(unlockTime);
     }
 
     /**
         @notice Claim veSOLID received via ve(3,3)
-        @dev This method is unguarded, anyone can call to claim at any time.
+        @dev This function is unguarded, anyone can call to claim at any time.
              The new veSOLID is represented by newly minted SOLIDsex, which is
              then sent to `FeeDistributor` and streamed to SEX lockers starting
              at the beginning of the following epoch week.
@@ -203,11 +223,17 @@ contract VeDepositor is IERC20, Ownable {
         amount -= totalSupply;
 
         if (amount > 0) {
-            balanceOf[address(this)] += amount;
+            _mint(address(this), amount);
             feeDistributor.depositFee(address(this), balanceOf[address(this)]);
             emit ClaimedFromVeDistributor(address(this), amount);
         }
 
         return true;
+    }
+
+    function _mint(address _user, uint256 _amount) internal {
+        balanceOf[_user] += _amount;
+        totalSupply += _amount;
+        emit Transfer(address(0), _user, _amount);
     }
 }

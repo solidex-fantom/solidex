@@ -16,9 +16,13 @@ contract DepositToken is IERC20 {
     address public pool;
 
     constructor() {
+        // set to prevent the implementation contract from being initialized
         pool = address(0xdead);
     }
 
+    /**
+        @dev Initializes the contract after deployment via a minimal proxy
+     */
     function initialize(address _pool) external returns (bool) {
         require(pool == address(0));
         pool = _pool;
@@ -87,12 +91,20 @@ contract DepositToken is IERC20 {
         return true;
     }
 
+    /**
+        @dev Only callable ty `LpDepositor`. Used to trigger a `Transfer` event
+             upon deposit of LP tokens, to aid accounting in block explorers.
+     */
     function mint(address _to, uint256 _value) external returns (bool) {
         require(msg.sender == address(depositor));
         emit Transfer(address(0), _to, _value);
         return true;
     }
 
+    /**
+        @dev Only callable ty `LpDepositor`. Used to trigger a `Transfer` event
+             upon withdrawal of LP tokens, to aid accounting in block explorers.
+     */
     function burn(address _from, uint256 _value) external returns (bool) {
         require(msg.sender == address(depositor));
         emit Transfer(_from, address(0), _value);
