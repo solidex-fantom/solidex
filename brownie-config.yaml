@@ -5,3 +5,7 @@ networks:
 
 
 autofetch_sources: true
+
+compiler:
+  solc:
+    version: 0.8.11
