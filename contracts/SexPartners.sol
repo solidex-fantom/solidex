@@ -50,9 +50,6 @@ contract SexPartners is Ownable {
     // maximum number of SEX partners
     uint256 public constant MAX_PARTNER_COUNT = 15;
 
-    event Claimed(address indexed user, uint256 amount);
-    event EarlyPartnerClaimed(address indexed user, address indexed rewardsToken, uint256 reward);
-
     constructor(
         IVotingEscrow _votingEscrow,
         IBaseV1Minter _minter,
@@ -178,7 +175,6 @@ contract SexPartners is Ownable {
             SEX.mint(address(this), amount);
             t.minted = mintable;
             totalMinted += amount;
-            emit Claimed(msg.sender, amount);
         }
 
         uint256 totalClaimable = t.minted * u.weight / t.weight;
@@ -186,7 +182,6 @@ contract SexPartners is Ownable {
             uint256 amount = totalClaimable - u.claimed;
             SEX.transfer(msg.sender, amount);
             u.claimed = totalClaimable;
-            emit Claimed(msg.sender, amount);
             return amount;
         }
         return 0;
@@ -209,7 +204,6 @@ contract SexPartners is Ownable {
         // transfer owed SOLIDsex
         uint256 amount = u.weight;
         SOLIDsex.transfer(msg.sender, amount);
-        emit EarlyPartnerClaimed(msg.sender, address(SOLIDsex), amount);
 
         // mint SEX advance
         amount /= 10;
@@ -217,7 +211,6 @@ contract SexPartners is Ownable {
         t.minted += amount;
         totalMinted += amount;
         SEX.mint(msg.sender, amount);
-        emit EarlyPartnerClaimed(msg.sender, address(SEX), amount);
 
         return amount;
     }
